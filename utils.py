@@ -13,7 +13,6 @@ from sqlalchemy.orm import (
     sessionmaker,
     Session,
 )
-import uuid
 import time
 from collections import Counter
 from schema import (
@@ -56,10 +55,17 @@ async def get_houses_data() -> Dict:
     return await response.json()
 
 
+def randip() -> str:
+    third = random.randint(1, 253)
+    fourth = random.randint(1, 253)
+    return f"192.168.{third}.{fourth}"
+
+
 async def get_decks_from_page(page: int) -> Iterable[str]:
     params = SEARCH_PARAMS.copy()
     params["page"] = page
-    response = await requests.get(APIBASE, params=params)
+    headers = {"X-Forwarded-For": randip()}
+    response = await requests.get(APIBASE, params=params, headers=headers)
     try:
         data = await response.json()
     except json.decoder.JSONDecodeError:
@@ -88,6 +94,7 @@ async def get_deck_id_by_name(name: str) -> str:
 
 async def get_deck(deck_id: str) -> Dict:
     deck_url = os.path.join(APIBASE, deck_id, "")
+    headers = {"X-Forwarded-For": randip()}
     response = await requests.get(deck_url, params=DECK_PARAMS, headers=headers)
     data = await response.json()
     if "code" in data:

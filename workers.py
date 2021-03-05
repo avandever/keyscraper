@@ -1,3 +1,4 @@
+import aiohttp
 import asyncio
 from asyncio import Lock, Queue
 import json

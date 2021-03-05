@@ -9,6 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from typing import Iterable, List
+import uuid
 
 
 ICONSEP1 = "."
