@@ -233,7 +233,7 @@ class SessionFactory:
         port: int = None,
         user: str = None,
         password: str = None,
-        table: str = "keyforge_decks",
+        database: str = "keyforge_decks",
     ):
         uri_bits = [driver, "://"]
         if driver == "sqlite":
@@ -251,7 +251,7 @@ class SessionFactory:
                 uri_bits.append(":")
                 uri_bits.append(port)
             uri_bits.append("/")
-            uri_bits.append(table)
+            uri_bits.append(database)
         else:
             raise UnknownDBDriverException(f"Unrecognized DB Driver: {driver}")
         self.uri = "".join(uri_bits)
