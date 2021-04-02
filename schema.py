@@ -71,6 +71,7 @@ class Card(Base):
     is_maverick = Column(Boolean)
     is_anomaly = Column(Boolean)
     is_enhanced = Column(Boolean)
+    is_non_deck = Column(Boolean, default=False, nullable=False)
     deck_assocs = relationship("DeckCard", back_populates="card")
     enhanced_card = relationship("EnhancedCard", uselist=False, back_populates="card")
 
