@@ -147,7 +147,7 @@ class DeckFetcher:
             except aiohttp.client_exceptions.ServerDisconnectedError:
                 logging.exception(f"{iname}:Got disconnected on deck {deck_id}")
             except Exception:
-                logging.exception("{iname}:Uncaught exception on deck {deck_id}!")
+                logging.exception(f"{iname}:Uncaught exception on deck {deck_id}!")
             async with self.counter_lock:
                 self.counter += 1
                 if self.counter % 1 == 0:
