@@ -64,11 +64,11 @@ def report_loop(ctx, db_file, sleep_seconds, running_window, db_driver: str,
 def get_images(ctx, image_dir: str):
     session = ctx.obj["SESSION_FACTORY"]()
     cards = get_all_cards(session)
-    get_card_images(
+    asyncio.run(get_card_images(
         cards,
         image_dir,
         group_by=["expansion", "house", "rarity", "card_type"],
-    )
+    ))
 
 
 @cli.command()

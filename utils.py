@@ -190,13 +190,13 @@ def record_known_card_id(card_id: str) -> None:
     known_card_ids.add(card_id)
 
 
-def get_card_images(
+async def get_card_images(
     cards: List[Card],
     image_dir: str,
     group_by: List[str] = None,
 ) -> None:
     for card in cards:
-        get_card_image(card, image_dir, group_by)
+        await get_card_image(card, image_dir, group_by)
 
 
 def build_image_dir(base_dir: str, card: Card, group_by: List[str] = None) -> str:
@@ -215,9 +215,9 @@ async def get_card_image(card: Card, image_dir: str, group_by: List[str] = None)
     group_by_link = os.path.join(group_by_path,
                                  os.path.basename(card.front_image))
     if not os.path.exists(output_file):
-        img = await requests.get(card.front_image, stream=True)
+        img = await requests.get(card.front_image)
         with open(output_file, "wb") as fh:
-            shutil.copyfileobj(img.raw, fh)
+            fh.write(await img.content.read())
     if not os.path.exists(group_by_link):
         os.makedirs(os.path.dirname(group_by_link), exist_ok=True)
         #os.symlink(link_target, group_by_link)
