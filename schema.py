@@ -1,11 +1,12 @@
 from enum import Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
+    Boolean,
     Column,
+    ForeignKey,
     Integer,
     String,
-    Boolean,
-    ForeignKey,
+    types,
 )
 from sqlalchemy.orm import relationship
 from typing import Iterable, List
@@ -29,21 +30,22 @@ class Icon(Enum):
     DAMAGE = "D"
 
 
-class DeckCard(Base):
-    """
-    These assoc objects represent an individual card in a deck. They serve as a
-    two-way mapping, so that a deck can have a list of cards, while each card
-    can have a list of decks in which it is found. However, this results in a
-    pretty large table on disk (30GB including indices on my instance), so it
-    may need to be changed.
-    """
-    __tablename__ = "deck_cards"
-    uuid = Column(String, primary_key=True, default=generate_uuid)
-    is_legacy = Column(Boolean)
-    deck_id = Column(String, ForeignKey("deck.id"), primary_key=True, index=True)
-    card_id = Column(String, ForeignKey("card.id"), primary_key=True, index=True)
-    deck = relationship("Deck", back_populates="card_assocs")
-    card = relationship("Card", back_populates="deck_assocs")
+class IdList(types.TypeDecorator):
+    impl=String(37*37)
+    cache_ok = True
+
+    def __init__(self, sep=","):
+        self.sep = sep
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            return self.sep.join(map(str, value))
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            if value == "":
+                return []
+            return list(map(str, value.split(self.sep)))
 
 
 class Card(Base):
@@ -54,34 +56,26 @@ class Card(Base):
     those dictionaries will work.
     """
     __tablename__ = "card"
-    id = Column(String, primary_key=True)
-    card_title = Column(String)
-    house = Column(String)
-    card_type = Column(String)
-    front_image = Column(String)
-    card_text = Column(String)
-    traits = Column(String)
+    id = Column(String(36), primary_key=True)
+    card_title = Column(String(64))
+    house = Column(String(20))
+    card_type = Column(String(20))
+    front_image = Column(String(256))
+    card_text = Column(String(512))
+    traits = Column(String(64))
     amber = Column(Integer)
     power = Column(Integer)
     armor = Column(Integer)
-    rarity = Column(String)
-    flavor_text = Column(String)
+    rarity = Column(String(10))
+    flavor_text = Column(String(512))
     card_number = Column(Integer)
     expansion = Column(Integer)
     is_maverick = Column(Boolean)
     is_anomaly = Column(Boolean)
     is_enhanced = Column(Boolean)
     is_non_deck = Column(Boolean, default=False, nullable=False)
-    deck_assocs = relationship("DeckCard", back_populates="card")
+    deck_id_list = Column(IdList(","))
     enhanced_card = relationship("EnhancedCard", uselist=False, back_populates="card")
-
-    @property
-    def decks(self) -> List[Base]:
-        """
-        Construct a list of decks containing this card, built from the DeckCard
-        assoc table.
-        """
-        return [assoc.deck for assoc in self.deck_assocs]
 
     def __repr__(self):
         """Nice string representation of the card."""
@@ -95,31 +89,34 @@ class Deck(Base):
     instead builds that list from the DeckCard assoc table.
     """
     __tablename__ = "deck"
-    id = Column(String, primary_key=True)
-    name = Column(String)
+    id = Column(String(36), primary_key=True)
+    name = Column(String(256))
     expansion = Column(Integer)
     power_level = Column(Integer)
     chains = Column(Integer)
     wins = Column(Integer)
     losses = Column(Integer)
-    card_assocs = relationship("DeckCard", back_populates="deck")
+    card_id_list = Column(IdList(","))
+
+    @classmethod
+    def cards_by_id(cls, ids: List[str]) -> List[Card]:
+        return cls.query(Card).filter(Card.id.in_(ids)).all()
 
     @property
     def cards(self) -> List[Card]:
-        """
-        Construct a list of Cards associated with this deck, built from the
-        DeckCard assoc table.
-        """
-        return [assoc.card for assoc in self.card_assocs]
+        return self.cards_by_id(self.card_id_list)
+
+    def __repr__(self):
+        return f"<Deck({self.name} / {self.id})>"
 
 
 class CardWithEnhance(Base):
     __tablename__ = "cards_with_enhance"
-    uuid = Column(String, primary_key=True, default=generate_uuid)
+    uuid = Column(String(64), primary_key=True, default=generate_uuid)
     # expansion + card_number is functionally a unique id
     expansion = Column(Integer)
     card_number = Column(Integer)
-    card_text = Column(String)
+    card_text = Column(String(512))
     aembers = Column(Integer)
     captures = Column(Integer)
     draws = Column(Integer)
@@ -128,14 +125,14 @@ class CardWithEnhance(Base):
 
 class EnhancedCard(Base):
     __tablename__ = "enhanced_cards"
-    uuid = Column(String, primary_key=True, default=generate_uuid)
-    id = Column(String, ForeignKey(Card.id), primary_key=True)
-    card_title = Column(String)
-    house = Column(String)
+    uuid = Column(String(64), primary_key=True, default=generate_uuid)
+    id = Column(String(36), ForeignKey(Card.id), primary_key=True)
+    card_title = Column(String(64))
+    house = Column(String(20))
     expansion = Column(Integer)
     card_number = Column(Integer)
     amber = Column(Integer)
-    possible_icon_groups = Column(String)
+    possible_icon_groups = Column(String(256))
     card = relationship("Card", uselist=False, back_populates="enhanced_card")
 
     def set_possible_icons(self, icon_groups: Iterable[List[Icon]]):

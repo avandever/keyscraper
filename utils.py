@@ -7,7 +7,7 @@ from aiohttp_requests import requests
 import sqlite3
 import shutil
 from typing import Callable, Dict, Iterable, List, Set, TextIO
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import (
     scoped_session,
     sessionmaker,
@@ -19,7 +19,6 @@ from schema import (
     Base,
     Card,
     Deck,
-    DeckCard,
 )
 from exceptions import (
     DeckNotFoundError,
@@ -149,6 +148,7 @@ def maybe_add_deck(deck: Dict, session: Session) -> None:
         chains=data["chains"],
         wins=data["wins"],
         losses=data["losses"],
+        card_id_list = data["_links"]["cards"]
     )
     for card_id in data["_links"]["cards"]:
         if card_id in card_cache.keys():
@@ -157,8 +157,9 @@ def maybe_add_deck(deck: Dict, session: Session) -> None:
             card = session.query(Card).filter_by(id=card_id).one()
             card_cache[card_id] = card
         is_legacy = (card.expansion < new_deck.expansion)
-        assoc = DeckCard(card=card, deck=new_deck, is_legacy=is_legacy)
-        session.add(assoc)
+        if not card.deck_id_list:
+            card.deck_id_list = []
+        card.deck_id_list.append(new_deck.id)
     session.add(new_deck)
     session.commit()
 
@@ -239,7 +240,7 @@ class SessionFactory:
         if driver == "sqlite":
             uri_bits.append("/")
             uri_bits.append(path)
-        elif driver == "postgresql":
+        elif driver in ["postgresql", "mysql"]:
             if user is not None:
                 uri_bits.append(user)
                 if password is not None:
@@ -256,7 +257,7 @@ class SessionFactory:
             raise UnknownDBDriverException(f"Unrecognized DB Driver: {driver}")
         self.uri = "".join(uri_bits)
 
-    def __call__(self) -> Session:
+    def __call__(self, future: bool = False) -> Session:
         engine = create_engine(self.uri, echo=False)
         Base.metadata.create_all(engine)
         session_factory = sessionmaker(bind=engine)
@@ -275,6 +276,7 @@ def loop_report(
     last_n_runs = []
     while True:
         previous_count = current_count
+        session.commit()
         current_count = session.query(Deck).count()
         cards_by_expansion = Counter(session.query(Card.expansion).all())
         if len(last_n_runs) == running_window:
